@@ -72,7 +72,7 @@
 
   <div class="card">
     <div class="toolbar">
-      <label>Lớp: <select id="clsFilter"><option value="ALL">Tất cả các lớp</option></select></label>
+      <select id="clsFilter" aria-label="Chọn lớp"></select>
       <button id="btnLoad">🔄 Tải kết quả</button>
       <button class="ghost" id="btnCsv">📥 Xuất Excel (CSV)</button>
       <button class="ghost" id="btnDemo">👀 Xem dữ liệu mẫu</button>
@@ -150,7 +150,7 @@ function starsOf(r) {
 function classList(records) {
   const set = new Set(Object.keys(CONFIG.CLASS_SIZES));
   records.forEach(r => r.className && set.add(r.className));
-  return Array.from(set).sort();
+  return ["7A", "7B", "7C", "7D", "7E"];
 }
 
 /** Tổng hợp mọi số liệu cho một lớp (hoặc ALL). */
@@ -234,7 +234,7 @@ function render() {
   const sel = $("clsFilter"), cur = sel.value;
   const cl = classList(RECORDS);
   sel.innerHTML = '<option value="ALL">Tất cả các lớp</option>' + cl.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join("");
-  sel.value = cl.includes(cur) ? cur : "ALL";
+  sel.value = cur === "ALL" || cl.includes(cur) ? cur : "ALL";
   const A = aggregate(RECORDS, sel.value);
   const pct = A.sizeSum ? Math.round(A.recs.length / A.sizeSum * 100) : 0;
 
