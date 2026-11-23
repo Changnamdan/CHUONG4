@@ -233,7 +233,7 @@ let timer = null;
 function render() {
   const sel = $("clsFilter"), cur = sel.value;
   const cl = classList(RECORDS);
-  sel.innerHTML = '<option value="ALL">Tất cả các lớp</option>' + cl.map(c => `<option value="${esc(c)}">Lớp ${esc(c)}</option>`).join("");
+  sel.innerHTML = '<option value="ALL">Tất cả các lớp</option>' + cl.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join("");
   sel.value = cl.includes(cur) ? cur : "ALL";
   const A = aggregate(RECORDS, sel.value);
   const pct = A.sizeSum ? Math.round(A.recs.length / A.sizeSum * 100) : 0;
