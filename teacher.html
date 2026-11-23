@@ -88,6 +88,10 @@
   <div class="kpis" id="kpis"></div>
   <div class="classes" id="classProg"></div>
 
+  <h2>Bảng điểm học sinh</h2>
+  <div class="scroll"><table id="tblScore"><thead><tr><th>Họ tên</th><th>Lớp</th><th>Ải 1</th><th>Ải 2</th><th>Ải 3</th><th>Ải 4</th><th>Đúng /40</th><th>Câu hỏi /8</th><th>XP–vàng /2</th><th>Tổng /10</th><th>Xếp loại</th></tr></thead><tbody></tbody></table></div>
+  <p class="note">Điểm mỗi ải = số câu đúng /10 (lấy lần làm tốt nhất). Tổng /10 đúng như điểm hiển thị trong trò chơi. Xếp loại: ≥9 Xuất sắc · ≥8 Giỏi · ≥6,5 Khá · ≥5 Đạt · dưới 5 Chưa đạt.</p>
+
   <h2>Tỉ lệ làm sai theo dạng bài</h2>
   <div class="card">
     <div class="legend" id="legend" style="justify-content:flex-end"></div>
@@ -109,8 +113,8 @@
 <script>
 /* =================== CẤU HÌNH – THẦY/CÔ CHỈ CẦN SỬA Ở ĐÂY =================== */
 const CONFIG = {
-  GAS_URL: "",                      // dán URL Apps Script (/exec) vào đây để khỏi phải nhập mỗi lần
-  CLASS_SIZES: { "7A": 32, "7B": 32, "7C": 31, "7D": 32, "7E": 30 },   // sĩ số từng lớp
+  GAS_URL: "https://script.google.com/macros/s/AKfycbyAtwLPcs7KaKs9fV1haV-KpDxX8i1dfhrSw5xxxytqv6Ip-HvKuEx_frXoAZoNnhpDgw/exec",                      // dán URL Apps Script (/exec) vào đây để khỏi phải nhập mỗi lần
+  CLASS_SIZES: { "7A": 32, "7B": 32, "7C": 32, "7D": 32, "7E": 30 },   // sĩ số từng lớp
   PASS_ACCURACY: 0.7,               // dưới 70% đúng thì "cần hỗ trợ"
   MIN_ATTEMPTS: 2                   // phải làm ít nhất 2 câu của dạng đó mới xét
 };
@@ -190,6 +194,10 @@ function aggregate(records, filter) {
   weakest.sort((a, b) => b.err - a.err);
   return { recs, classes, sizeSum, byClass, skill, order, weakest, rank, finished4, questions, errOf };
 }
+
+function stageScore(r, k) { const b = r.stageBest && r.stageBest[k]; return b && b.score != null ? b.score : null; }
+function grade(t) { return t >= 9 ? "Xuất sắc" : t >= 8 ? "Giỏi" : t >= 6.5 ? "Khá" : t >= 5 ? "Đạt" : "Chưa đạt"; }
+function avg10(list) { return list.length ? list.reduce((a, r) => a + (+r.total10 || 0), 0) / list.length : 0; }
 /*ENDLOGIC*/
 
 /* =================== DỮ LIỆU MẪU (để xem thử giao diện) =================== */
@@ -208,10 +216,10 @@ function demoData() {
         skillStats[s.k] = { right, total };
       });
       const stars = Math.floor(Math.random() * 5);
-      const stageBest = {}; for (let k = 1; k <= 4; k++) stageBest[k] = { passed: k <= stars };
+      const stageBest = {}; let c40 = 0; for (let k = 1; k <= 4; k++) { const sc = k <= stars ? 5 + Math.floor(Math.random() * 6) : 0; c40 += sc; stageBest[k] = { passed: k <= stars, score: sc }; }
       const xp = 400 + Math.floor(Math.random() * 5200);
       const t10 = Math.round((3 + Math.random() * 6.5) * 10) / 10;
-      recs.push({ name: nm + (ci ? " (B)" : ""), className: cls, level: Math.floor(xp / 1000) + 1, xp, total10: t10, completedStages: stars, stageBest, skillStats, updated: "mẫu" });
+      recs.push({ name: nm + (ci ? " (B)" : ""), className: cls, level: Math.floor(xp / 1000) + 1, xp, total10: t10, totalCorrect40: c40, quizPoints: Math.round(c40 * 2) / 10, bonusPoints: Math.min(2, Math.round(xp / 30) / 10), completedStages: stars, stageBest, skillStats, updated: "mẫu" });
     });
   });
   return recs;
@@ -238,8 +246,19 @@ function render() {
   $("classProg").innerHTML = A.classes.map((c, i) => {
     const b = A.byClass[c], w = b.size ? Math.min(100, Math.round(b.n / b.size * 100)) : 0;
     return `<div class="cls"><div class="top"><strong>${esc(c)}</strong><span><b>${b.n}/${b.size} em</b> đã chơi · ${b.q.toLocaleString("vi-VN")} câu</span></div>
-      <small>sĩ số ${b.size}</small><div class="track"><i style="width:${w}%;background:${CLASS_COLORS[i % CLASS_COLORS.length]}"></i></div></div>`;
+      <small>sĩ số ${b.size} · ĐTB ${avg10(A.recs.filter(r => r.className === c)).toFixed(1)}</small><div class="track"><i style="width:${w}%;background:${CLASS_COLORS[i % CLASS_COLORS.length]}"></i></div></div>`;
   }).join("");
+
+  const sorted = A.recs.slice().sort((a, b) => String(a.className).localeCompare(b.className) || String(a.name).localeCompare(b.name, "vi"));
+  const cell = v => v === null ? '<td style="color:#aaa">–</td>' : `<td>${v}</td>`;
+  let body = sorted.map(r => {
+    const t = +r.total10 || 0;
+    return `<tr><td><b>${esc(r.name)}</b></td><td>${esc(r.className)}</td>${[1, 2, 3, 4].map(k => cell(stageScore(r, k))).join("")}
+      <td>${r.totalCorrect40 || 0}</td><td>${(+r.quizPoints || 0).toFixed(1)}</td><td>${(+r.bonusPoints || 0).toFixed(1)}</td>
+      <td class="${t < 5 ? "bad" : "ok"}"><b>${t.toFixed(1)}</b></td><td>${grade(t)}</td></tr>`;
+  }).join("");
+  if (sorted.length) body += `<tr style="background:var(--teal-soft)"><td colspan="9"><b>Điểm trung bình ${sel.value === "ALL" ? "các lớp" : "lớp " + esc(sel.value)} (${sorted.length} em)</b></td><td><b>${avg10(sorted).toFixed(1)}</b></td><td></td></tr>`;
+  $("tblScore").querySelector("tbody").innerHTML = body || '<tr><td colspan="11" class="empty">Chưa có dữ liệu.</td></tr>';
 
   // biểu đồ cột nhóm
   const activeCls = A.classes.filter(c => A.recs.some(r => r.className === c));
@@ -299,10 +318,10 @@ async function load() {
 function exportCsv() {
   if (!RECORDS.length) { alert("Chưa có dữ liệu để xuất!"); return; }
   const q = v => '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"';
-  let csv = "\uFEFFHọ và tên,Lớp,Cấp độ,Số sao,Số câu đúng (/40),Điểm câu hỏi (/8),Điểm XP-vàng (/2),Tổng điểm (/10),XP,Vàng,Dạng yếu nhất,Cập nhật\n";
+  let csv = "\uFEFFHọ và tên,Lớp,Cấp độ,Số sao,Ải 1,Ải 2,Ải 3,Ải 4,Số câu đúng (/40),Điểm câu hỏi (/8),Điểm XP-vàng (/2),Tổng điểm (/10),XP,Vàng,Dạng yếu nhất,Cập nhật\n";
   RECORDS.forEach(r => {
     const A = aggregate([r], "ALL"); const w = A.weakest[0];
-    csv += [q(r.name), q(r.className), r.level || "", starsOf(r), r.totalCorrect40 || 0, (+r.quizPoints || 0).toFixed(1), (+r.bonusPoints || 0).toFixed(1),
+    csv += [q(r.name), q(r.className), r.level || "", starsOf(r), stageScore(r,1) ?? "", stageScore(r,2) ?? "", stageScore(r,3) ?? "", stageScore(r,4) ?? "", r.totalCorrect40 || 0, (+r.quizPoints || 0).toFixed(1), (+r.bonusPoints || 0).toFixed(1),
       (+r.total10 || 0).toFixed(1), r.xp || 0, r.gold || 0, q(w ? SKILLS.find(x => x.k === w.k).name : ""), q(r.updated || r.timestamp || "")].join(",") + "\n";
   });
   const a = document.createElement("a");
