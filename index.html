@@ -1343,8 +1343,9 @@
         <div style="font-size:15px; color:var(--muted); margin-bottom:4px;">
           🔗 <strong>Đường dẫn truy cập trực tiếp Trang Giáo Viên:</strong> <code id="teacherDirectUrl" style="color:#154360;">?gv=1</code>
         </div>
-        <div style="display:flex; gap:8px; align-items:center;">
-          <input type="text" id="gasUrlInput" class="form-input" style="font-size:16px; padding:7px 10px;" placeholder="Dán URL Google Apps Script (/exec) để đồng bộ nhiều máy..." onchange="saveGasUrl()">
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <input type="text" id="gasUrlInput" class="form-input" style="font-size:16px; padding:7px 10px; flex:2; min-width:260px;" placeholder="https://script.google.com/macros/s/AKfycbx7jrLn0mBEu1rMyGGrtHMo3oOFtcrxWt4AzQYxTBi94L3HoHFgn0mNXD4PBDkBM4Hcpg/exec " onchange="saveGasUrl()">
+          <input type="password" id="teacherKeyInput" class="form-input" style="font-size:16px; padding:7px 10px; flex:1; min-width:180px;" placeholder="Mật khẩu giáo viên">
         </div>
         <div id="teacherFetchStatus" style="font-size:15px; color:var(--primary); margin-top:4px;"></div>
       </div>
@@ -2595,7 +2596,7 @@ function openTeacherDashboardDirect() {
   document.getElementById("bottomNav").style.display = "none";
   document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
   document.getElementById("screen-teacher").classList.add("active");
-  document.getElementById("gasUrlInput").value = state.gasUrl || "";
+  document.getElementById("gasUrlInput").value = state.gasUrl || GAS_URL || "";
   document.getElementById("teacherDirectUrl").textContent = window.location.href.split("?")[0].split("#")[0] + "?gv=1";
   renderTeacherAnalytics();
 }
@@ -2615,24 +2616,34 @@ function saveGasUrl() {
 
 async function fetchTeacherResults() {
   const url = document.getElementById("gasUrlInput").value.trim();
+  const key = document.getElementById("teacherKeyInput").value.trim();
   const statusEl = document.getElementById("teacherFetchStatus");
+
   if (!url) {
-    statusEl.textContent = "ℹ️ Đang hiển thị toàn bộ kết quả tự động gửi về trên thiết bị. Nhập URL Google Apps Script (/exec) nếu đồng bộ từ nhiều máy.";
-    renderTeacherAnalytics();
+    statusEl.textContent = "⚠️ Chưa nhập URL Google Apps Script (/exec).";
     return;
   }
+  if (!key) {
+    statusEl.textContent = "⚠️ Hãy nhập mật khẩu giáo viên rồi bấm Tải kết quả.";
+    return;
+  }
+
   statusEl.textContent = "⏳ Đang tải kết quả từ Google Sheets...";
   try {
-    const res = await fetch(url);
+    const joiner = url.includes("?") ? "&" : "?";
+    const res = await fetch(url + joiner + "key=" + encodeURIComponent(key), { cache: "no-store" });
     const data = await res.json();
+
     if (Array.isArray(data)) {
-      localStorage.setItem("vq_tamgiac_teacher_records", JSON.stringify(data));
-      statusEl.textContent = `✅ Đã tải thành công ${data.length} kết quả học sinh!`;
+      const validRecords = data.filter(r => r && r.name && r.className);
+      localStorage.setItem("vq_tamgiac_teacher_records", JSON.stringify(validRecords));
+      statusEl.textContent = `✅ Đã tải ${validRecords.length} kết quả học sinh từ Google Sheets.`;
       renderTeacherAnalytics();
+    } else {
+      statusEl.textContent = "⚠️ " + (data.error || "Máy chủ không trả về danh sách kết quả.");
     }
   } catch (e) {
-    statusEl.textContent = "⚠️ Không kết nối được URL trực tuyến. Đang hiển thị dữ liệu lưu cục bộ.";
-    renderTeacherAnalytics();
+    statusEl.textContent = "⚠️ Không kết nối được. Kiểm tra URL /exec, quyền Web app và kết nối mạng.";
   }
 }
 
